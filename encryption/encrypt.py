@@ -1,62 +1,41 @@
+import sys
 import os
-import subprocess
+from cryptography.hazmat.primitives import serialization, hashes
+from cryptography.hazmat.primitives.asymmetric import padding
+from cryptography.fernet import Fernet
 
-# -----------------------
-# Paths
-# -----------------------
-SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-SUBMISSION_DIR = SCRIPT_DIR  # submissions folder itself
-PUBLIC_KEY = os.path.join(os.path.dirname(SCRIPT_DIR), "encryption", "public_key.pem")
+def encrypt_file(input_file_path):
+    _dir = os.path.dirname(os.path.abspath(__file__))
+    key_path = os.path.join(_dir, "public_key.pem")
+    with open(key_path, "rb") as key_file:
+        public_key = serialization.load_pem_public_key(key_file.read())
 
-AES_KEY_PATH = os.path.join(SUBMISSION_DIR, "aes_key.hex")
-AES_KEY_ENC_PATH = os.path.join(SUBMISSION_DIR, "aes_key.enc")
+    session_key = Fernet.generate_key()
+    cipher_suite = Fernet(session_key)
 
-# -----------------------
-# Step 1: Generate AES key
-# -----------------------
-print("Generating AES key...")
-result = subprocess.run(
-    ["openssl", "rand", "-hex", "32"], capture_output=True, text=True, check=True
-)
-aes_key = result.stdout.strip()
-with open(AES_KEY_PATH, "w") as f:
-    f.write(aes_key)
+    with open(input_file_path, "rb") as f:
+        file_data = f.read()
+    encrypted_data = cipher_suite.encrypt(file_data)
 
-# -----------------------
-# Step 2: Encrypt all CSVs
-# -----------------------
-csv_files = [
-    f for f in os.listdir(SUBMISSION_DIR)
-    if f.endswith(".csv") and f != "sample_submission.csv"
-]
-
-for csv_file in csv_files:
-    input_path = os.path.join(SUBMISSION_DIR, csv_file)
-    output_path = os.path.splitext(input_path)[0] + ".enc"
-    
-    print(f"Encrypting {csv_file}...")
-    subprocess.run(
-        [
-            "openssl", "enc", "-aes-256-cbc", "-pbkdf2",
-            "-in", input_path,
-            "-out", output_path,
-            "-pass", f"file:{AES_KEY_PATH}"
-        ],
-        check=True
+    encrypted_session_key = public_key.encrypt(
+        session_key,
+        padding.OAEP(
+            mgf=padding.MGF1(algorithm=hashes.SHA256()),
+            algorithm=hashes.SHA256(),
+            label=None
+        )
     )
 
-# -----------------------
-# Step 3: Encrypt AES key with RSA public key
-# -----------------------
-print("Encrypting AES key with RSA...")
-subprocess.run(
-    [
-        "openssl", "pkeyutl", "-encrypt", "-pubin",
-        "-inkey", PUBLIC_KEY,
-        "-in", AES_KEY_PATH,
-        "-out", AES_KEY_ENC_PATH
-    ],
-    check=True
-)
+    output_file = input_file_path + ".enc"
+    with open(output_file, "wb") as f:
+        f.write(encrypted_session_key) 
+        f.write(encrypted_data)
+    
+    print(f"Success! Encrypted to '{output_file}' (Hybrid Mode).")
 
-print("Encryption completed. All CSVs encrypted and AES key secured.")
+if __name__ == "__main__":
+    if len(sys.argv) < 2:
+        print("Usage: python encrypt.py <filename>")
+    else:
+        encrypt_file(sys.argv[1])
+# ../submissions/baseline_model.csv --- IGNORE ---
