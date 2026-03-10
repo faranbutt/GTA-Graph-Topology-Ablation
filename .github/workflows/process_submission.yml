@@ -1,0 +1,51 @@
+name: Process Secure Submission
+
+# CHANGE 1: Trigger on PUSH to main (instead of PR closed)
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write
+
+jobs:
+  process-merged-file:
+    # CHANGE 2: Remove the "if merged" check (Push implies merge)
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      - name: Install Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Find and Process Submission
+        env:
+          SUBMISSION_PRIVATE_KEY: ${{ secrets.SUBMISSION_PRIVATE_KEY }}
+          TEST_LABELS_CSV: ${{ secrets.TEST_LABELS_CSV }}
+        run: |
+          python .github/scripts/process_submission.py
+          
+
+      - name: Commit and Push Changes
+        run: |
+          git config user.name "SubmissionBot"
+          git config user.email "bot@noreply.github.com"
+          git add .
+          if ! git diff-index --quiet HEAD; then
+            git commit -m "Processed new submission [skip ci]"
+            git push
+          else
+            echo "No changes to commit."
+          fi

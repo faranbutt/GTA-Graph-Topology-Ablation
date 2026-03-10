@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GNN Challenge - Leaderboard</title>
+    <link rel="stylesheet" href="leaderboard.css">
+</head>
+<body>
+    <canvas id="graph-canvas"></canvas>
+    
+    <div class="container">
+        <div class="header">
+            <h1>🏆 CGCC Leaderboard</h1>
+            <p>Classifying city street network layouts (organic, grid, or hybrid) using GNN</p>
+        </div>
+        <p class="last-updated" id="last-updated">Loading...</p>
+        
+        <div class="leaderboard">
+            <table>
+                <thead id="table-header">
+                    <tr>
+                        <th class="rank">Rank</th>
+                        <th>Team</th>
+                    </tr>
+                </thead>
+                <tbody id="table-body">
+                    <tr>
+                        <td colspan="100%" class="empty">Loading leaderboard data...</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+        
+        <div class="footer">
+            <p>Submit your solution via Pull Request to appear on the leaderboard!</p>
+            <p style="margin-top: 10px; font-size: 0.95em;">
+                <a href="https://github.com/Murad-Hossen/CGCC"  
+                   target="_blank" 
+                   rel="noopener noreferrer">
+                    🔗 View Repository on GitHub
+                </a>
+            </p>
+        </div>
+    </div>
+    
+    <script src="leaderboard.js?v=1"></script>
+</body>
+</html>
+
