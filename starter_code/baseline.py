@@ -1,132 +1,118 @@
+import os
 import torch
 import pandas as pd
 import torch.nn.functional as F
+
+from torch_geometric.datasets import TUDataset
 from torch_geometric.loader import DataLoader
-import os
+from torch_geometric.nn import GINConv, global_mean_pool
 
-from dataset import TopologicalDataset
-from model import GINModel
+from torch.nn import Sequential, Linear, ReLU
 
-
-# -------------------------------------------------
-# Device
-# -------------------------------------------------
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-print("Device:", device)
-
-
-# -------------------------------------------------
+# ----------------------------
 # Paths
-# -------------------------------------------------
+# ----------------------------
+
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 REPO_ROOT = os.path.abspath(os.path.join(SCRIPT_DIR, ".."))
 
 DATA_DIR = os.path.join(REPO_ROOT, "data")
-SUBMISSIONS_DIR = os.path.join(REPO_ROOT, "submissions")
+SUBMISSION_DIR = os.path.join(REPO_ROOT, "submissions")
 
-os.makedirs(SUBMISSIONS_DIR, exist_ok=True)
+os.makedirs(SUBMISSION_DIR, exist_ok=True)
 
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+print("Device:", device)
 
-# -------------------------------------------------
-# Load data splits
-# -------------------------------------------------
+# ----------------------------
+# Load MUTAG dataset
+# ----------------------------
+
+dataset = TUDataset(root=DATA_DIR, name="MUTAG")
+
+# ----------------------------
+# Load CSV splits
+# ----------------------------
+
 print("Loading CSV splits...")
 
 train_df = pd.read_csv(os.path.join(DATA_DIR, "train.csv"))
 test_df = pd.read_csv(os.path.join(DATA_DIR, "test.csv"))
 
-
-# -------------------------------------------------
-# Dataset instances
-# -------------------------------------------------
-print("Loading datasets...")
-
-train_dataset = TopologicalDataset(
-    "MUTAG",
-    topo_config="degree",
-    mode="ideal"
-)
-
-ideal_test_dataset = TopologicalDataset(
-    "MUTAG",
-    topo_config="degree",
-    mode="ideal"
-)
-
-perturbed_test_dataset = TopologicalDataset(
-    "MUTAG",
-    topo_config="degree",
-    mode="perturbed"
-)
-
-
-# -------------------------------------------------
-# Build graph lists
-# -------------------------------------------------
-print("Preparing training graphs...")
+# ----------------------------
+# Build train graphs
+# ----------------------------
 
 train_graphs = []
 
 for _, row in train_df.iterrows():
 
-    g = train_dataset[int(row.graph_index)]
-
-    # assign label from CSV
-    g.y = torch.tensor([int(row.label)], dtype=torch.long)
+    g = dataset[int(row.graph_index)]
+    g.y = torch.tensor([int(row.label)])
 
     train_graphs.append(g)
 
+# ----------------------------
+# Build test graphs
+# ----------------------------
 
-print("Preparing test graphs...")
+test_graphs = []
 
-ideal_test_graphs = [
-    ideal_test_dataset[int(i)] for i in test_df["graph_index"]
-]
+for _, row in test_df.iterrows():
 
-perturbed_test_graphs = [
-    perturbed_test_dataset[int(i)] for i in test_df["graph_index"]
-]
+    g = dataset[int(row.graph_index)]
+    test_graphs.append(g)
 
-
-# -------------------------------------------------
+# ----------------------------
 # DataLoaders
-# -------------------------------------------------
+# ----------------------------
+
 train_loader = DataLoader(train_graphs, batch_size=32, shuffle=True)
+test_loader = DataLoader(test_graphs, batch_size=32, shuffle=False)
 
-ideal_test_loader = DataLoader(
-    ideal_test_graphs,
-    batch_size=32,
-    shuffle=False
-)
-
-perturbed_test_loader = DataLoader(
-    perturbed_test_graphs,
-    batch_size=32,
-    shuffle=False
-)
-
-
-# -------------------------------------------------
+# ----------------------------
 # Model
-# -------------------------------------------------
-print("Initializing model...")
+# ----------------------------
 
-model = GINModel(
-    input_dim=train_dataset.num_features,
-    output_dim=train_dataset.num_classes
-)
+class GINModel(torch.nn.Module):
 
-model = model.to(device)
+    def __init__(self, input_dim, num_classes):
+        super().__init__()
 
-optimizer = torch.optim.Adam(
-    model.parameters(),
-    lr=0.01
-)
- 
+        nn = Sequential(
+            Linear(input_dim, 64),
+            ReLU(),
+            Linear(64, 64)
+        )
 
-# -------------------------------------------------
+        self.conv1 = GINConv(nn)
+        self.lin = Linear(64, num_classes)
+
+    def forward(self, data):
+
+        x, edge_index, batch = data.x, data.edge_index, data.batch
+
+        x = self.conv1(x, edge_index)
+        x = F.relu(x)
+
+        x = global_mean_pool(x, batch)
+
+        x = self.lin(x)
+
+        return F.log_softmax(x, dim=1)
+
+# ----------------------------
+# Initialize model
+# ----------------------------
+
+model = GINModel(dataset.num_features, dataset.num_classes).to(device)
+
+optimizer = torch.optim.Adam(model.parameters(), lr=0.01)
+
+# ----------------------------
 # Training
-# -------------------------------------------------
+# ----------------------------
+
 print("Training model...")
 
 for epoch in range(50):
@@ -151,60 +137,39 @@ for epoch in range(50):
         total_loss += loss.item()
 
     if (epoch + 1) % 10 == 0:
-        print(f"Epoch {epoch+1} | Loss: {total_loss:.4f}")
+        print(f"Epoch {epoch+1} | Loss {total_loss:.4f}")
 
+# ----------------------------
+# Prediction
+# ----------------------------
 
-# -------------------------------------------------
-# Prediction Function
-# -------------------------------------------------
-def predict(model, loader):
+print("Generating predictions...")
 
-    model.eval()
+model.eval()
 
-    predictions = []
+predictions = []
 
-    with torch.no_grad():
+with torch.no_grad():
 
-        for data in loader:
+    for data in test_loader:
 
-            data = data.to(device)
+        data = data.to(device)
 
-            out = model(data)
+        out = model(data)
 
-            pred = out.argmax(dim=1)
+        pred = out.argmax(dim=1)
 
-            predictions.extend(pred.cpu().tolist())
+        predictions.extend(pred.tolist())
 
-    return predictions
+# ----------------------------
+# Save submission
+# ----------------------------
 
-
-# -------------------------------------------------
-# Generate Predictions
-# -------------------------------------------------
-print("Generating IDEAL predictions...")
-ideal_predictions = predict(model, ideal_test_loader)
-
-print("Generating PERTURBED predictions...")
-perturbed_predictions = predict(model, perturbed_test_loader)
-
-
-# -------------------------------------------------
-# Save Submissions
-# -------------------------------------------------
-ideal_path = os.path.join(SUBMISSIONS_DIR, "ideal_submission.csv")
-perturbed_path = os.path.join(SUBMISSIONS_DIR, "perturbed_submission.csv")
+submission_path = os.path.join(SUBMISSION_DIR, "submission.csv")
 
 pd.DataFrame({
-    "graph_index": test_df["graph_index"],
-    "target": ideal_predictions
-}).to_csv(ideal_path, index=False)
+    "graph_index": test_df.graph_index,
+    "label": predictions
+}).to_csv(submission_path, index=False)
 
-pd.DataFrame({
-    "graph_index": test_df["graph_index"],
-    "target": perturbed_predictions
-}).to_csv(perturbed_path, index=False)
-
-
-print("\nSubmissions generated successfully:")
-print(f"Ideal predictions saved to: {ideal_path}")
-print(f"Perturbed predictions saved to: {perturbed_path}")
+print("Submission saved to:", submission_path)
