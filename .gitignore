@@ -10,5 +10,4 @@ leaderboard/test_labels_hidden.csv
 private_key.pem
 .env
 *.csv
-submissions/*.enc
-submissions/aes_key.*
+
