@@ -5,48 +5,61 @@ import pandas as pd
 import subprocess
 import json
 import sys
+import time
 
 # Resolve repo root
 repo_root = Path(__file__).parent.parent.resolve()
 sys.path.insert(0, str(repo_root))
 
 from encryption.decrypt import decrypt_file
-from leaderboard.calculate_scores import calculate_scores
 
 # Submissions folder and leaderboard CSV
 SUBMISSIONS_DIR = repo_root / "submissions"
 LEADERBOARD_CSV = repo_root / "leaderboard/leaderboard.csv"
 
-def ensure_metadata(csv_file, team_name):
-    """Automatically create metadata.json next to CSV if missing."""
-    metadata_file = csv_file.parent / "metadata.json"
+def ensure_metadata(team_dir, submission_type="ideal"):
+    """Create metadata.json in team directory if missing."""
+    metadata_file = team_dir / "metadata.json"
+    
+    # Only create if it doesn't exist
     if not metadata_file.exists():
-        print(f"DEBUG: Creating metadata.json for {csv_file.name}")
+        print(f"DEBUG: Creating metadata.json for {team_dir.name}")
         metadata = {
-            "team_name": team_name,
+            "team_name": team_dir.name,
             "submission_time": "2026-03-11T20:00:00Z",
-            "description": f"Auto-generated metadata for {csv_file.name}"
+            "description": f"Auto-generated metadata for {team_dir.name}",
+            "submission_type": submission_type
         }
         with open(metadata_file, "w") as f:
-            json.dump(metadata, f)
-        print(f"DEBUG: metadata.json successfully created at {metadata_file}")
+            json.dump(metadata, f, indent=2)
+        print(f"DEBUG: metadata.json created at {metadata_file}")
+        
+        # Verify it was created and is valid JSON
+        if metadata_file.exists():
+            print(f"DEBUG: metadata.json exists and size: {metadata_file.stat().st_size} bytes")
+            # Verify it's valid JSON
+            with open(metadata_file, 'r') as f:
+                json.load(f)
+            print(f"DEBUG: metadata.json contains valid JSON")
     else:
-        print(f"DEBUG: metadata.json already exists for {csv_file.name}")
+        print(f"DEBUG: metadata.json already exists for {team_dir.name}")
+    
+    return metadata_file
 
 def get_leaderboard_data():
     leaderboard = []
 
     print(f"DEBUG: Repo root: {repo_root}")
     print(f"DEBUG: Looking for submissions in: {SUBMISSIONS_DIR}")
+    
     if not SUBMISSIONS_DIR.exists():
         print("DEBUG: Submissions directory does not exist!")
         return leaderboard
-    print("DEBUG: Found team folders:", [d.name for d in SUBMISSIONS_DIR.iterdir() if d.is_dir()])
+    
+    team_folders = [d for d in SUBMISSIONS_DIR.iterdir() if d.is_dir()]
+    print("DEBUG: Found team folders:", [d.name for d in team_folders])
 
-    for team_dir in SUBMISSIONS_DIR.iterdir():
-        if not team_dir.is_dir():
-            continue
-
+    for team_dir in team_folders:
         print(f"\nDEBUG: Processing team folder: {team_dir.name}")
         print("DEBUG: Files in team folder:", [f.name for f in team_dir.iterdir()])
 
@@ -56,6 +69,10 @@ def get_leaderboard_data():
         if not ideal_enc.exists() or not pert_enc.exists():
             print(f"Skipping {team_dir.name}: missing files (expected ideal.enc and perturbed.enc)")
             continue
+
+        # Create metadata FIRST, before any decryption
+        print(f"DEBUG: Ensuring metadata exists for {team_dir.name}")
+        ensure_metadata(team_dir)
 
         # Decrypted CSV files
         ideal_csv = team_dir / "ideal_submissions.csv"
@@ -67,36 +84,65 @@ def get_leaderboard_data():
         print(f"DEBUG: Decrypting {pert_enc} -> {pert_csv}")
         decrypt_file(pert_enc, pert_csv)
 
-        # Ensure metadata exists before scoring
-        ensure_metadata(ideal_csv, team_dir.name)
-        ensure_metadata(pert_csv, team_dir.name)
+        # Verify files exist after decryption
+        print(f"DEBUG: After decryption - Files in team folder:", [f.name for f in team_dir.iterdir()])
+
+        # Small delay to ensure file system is synced
+        time.sleep(1)
 
         # Score ideal
         try:
-            ideal_scores_json = subprocess.check_output([
+            print(f"DEBUG: Scoring ideal submission: {ideal_csv}")
+            print(f"DEBUG: Checking metadata.json exists: {(team_dir / 'metadata.json').exists()}")
+            
+            result = subprocess.run([
                 sys.executable,
                 str(repo_root / "leaderboard/score_submission.py"),
                 str(ideal_csv),
                 "--require-metadata"
-            ])
-            ideal_scores = json.loads(ideal_scores_json)
-            print(f"DEBUG: Ideal scores: {ideal_scores}")
+            ], capture_output=True, text=True, check=True)
+            
+            print(f"DEBUG: Ideal scoring stdout: {result.stdout}")
+            print(f"DEBUG: Ideal scoring stderr: {result.stderr}")
+            
+            ideal_scores = json.loads(result.stdout)
+            print(f"DEBUG: Ideal scores parsed: {ideal_scores}")
+            
         except subprocess.CalledProcessError as e:
-            print(f"Error scoring {ideal_csv}: {e}")
+            print(f"Error scoring {ideal_csv}:")
+            print(f"  stdout: {e.stdout}")
+            print(f"  stderr: {e.stderr}")
+            continue
+        except json.JSONDecodeError as e:
+            print(f"Error parsing JSON from ideal scoring: {e}")
+            print(f"Output was: {result.stdout}")
             continue
 
         # Score perturbed
         try:
-            pert_scores_json = subprocess.check_output([
+            print(f"DEBUG: Scoring perturbed submission: {pert_csv}")
+            
+            result = subprocess.run([
                 sys.executable,
                 str(repo_root / "leaderboard/score_submission.py"),
                 str(pert_csv),
                 "--require-metadata"
-            ])
-            pert_scores = json.loads(pert_scores_json)
-            print(f"DEBUG: Perturbed scores: {pert_scores}")
+            ], capture_output=True, text=True, check=True)
+            
+            print(f"DEBUG: Perturbed scoring stdout: {result.stdout}")
+            print(f"DEBUG: Perturbed scoring stderr: {result.stderr}")
+            
+            pert_scores = json.loads(result.stdout)
+            print(f"DEBUG: Perturbed scores parsed: {pert_scores}")
+            
         except subprocess.CalledProcessError as e:
-            print(f"Error scoring {pert_csv}: {e}")
+            print(f"Error scoring {pert_csv}:")
+            print(f"  stdout: {e.stdout}")
+            print(f"  stderr: {e.stderr}")
+            continue
+        except json.JSONDecodeError as e:
+            print(f"Error parsing JSON from perturbed scoring: {e}")
+            print(f"Output was: {result.stdout}")
             continue
 
         leaderboard.append({
