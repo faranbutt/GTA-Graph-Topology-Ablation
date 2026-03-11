@@ -171,7 +171,7 @@ jobs:
           echo "Decrypting and scoring submissions..."
           python .github/scripts/process_submission.py
 
-      # 🔟 Commit and push any changes only for pushes to main
+      # 🔟 Commit and push any changes only for pushes to main (with pull to avoid rejection)
       - name: Commit and Push Changes (Main branch only)
         if: github.event_name == 'push'
         run: |
@@ -180,6 +180,7 @@ jobs:
           git add .
           if ! git diff-index --quiet HEAD; then
             git commit -m "Processed new submission [skip ci]"
+            git pull --no-rebase origin main
             git push
           else
             echo "No changes to commit."
