@@ -14,9 +14,9 @@ sys.path.insert(0, str(repo_root))
 
 from encryption.decrypt import decrypt_file
 
-# Submissions folder and leaderboard CSV
+# Submissions folder and leaderboard CSV (now points to docs/)
 SUBMISSIONS_DIR = repo_root / "submissions"
-LEADERBOARD_CSV = repo_root / "leaderboard/leaderboard.csv"
+LEADERBOARD_CSV = repo_root / "docs" / "leaderboard.csv"
 
 def ensure_metadata(team_dir):
     """Create metadata.json in team directory if missing."""
