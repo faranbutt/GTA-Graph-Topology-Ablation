@@ -1,27 +1,19 @@
 # .github/scripts/process_submission.py
 import subprocess
-import sys
 from pathlib import Path
 
 # Repo root
-repo_root = Path(__file__).parent.parent.resolve()
-sys.path.insert(0, str(repo_root))
-
-def run_script(script_path: Path):
-    result = subprocess.run([sys.executable, str(script_path)])
-    if result.returncode != 0:
-        print(f"ERROR: Script {script_path} failed with exit code {result.returncode}")
-        sys.exit(result.returncode)
+repo_root = Path(__file__).parent.parent.parent.resolve()
 
 def main():
     print("Decrypting submission...")
-    run_script(repo_root / "encryption" / "decrypt.py")  # <-- fixed path
+    subprocess.run(["python", str(repo_root / "encryption" / "decrypt.py")], check=True)
 
     print("Scoring submission...")
-    run_script(repo_root / "leaderboard" / "score_submission.py")
+    subprocess.run(["python", str(repo_root / "leaderboard" / "score_submission.py")], check=True)
 
     print("Updating leaderboard...")
-    run_script(repo_root / "leaderboard" / "update_leaderboard.py")
+    subprocess.run(["python", str(repo_root / "leaderboard" / "update_leaderboard.py")], check=True)
 
 if __name__ == "__main__":
     main()
