@@ -30,6 +30,11 @@ def ensure_metadata(csv_file, team_name):
         }
         with open(metadata_file, "w") as f:
             json.dump(metadata, f)
+        # Verify
+        if metadata_file.exists():
+            print(f"DEBUG: Successfully created {metadata_file.name}")
+        else:
+            print(f"WARNING: Failed to create {metadata_file.name}")
     else:
         print(f"DEBUG: metadata.json already exists for {csv_file.name}")
 
@@ -71,9 +76,17 @@ def get_leaderboard_data():
         print(f"DEBUG: Decrypting {pert_enc} -> {pert_csv}")
         decrypt_file(pert_enc, pert_csv)
 
-        # Ensure metadata exists
+        # Ensure metadata exists before scoring
         ensure_metadata(ideal_csv, team_dir.name)
         ensure_metadata(pert_csv, team_dir.name)
+
+        # Verify metadata exists
+        if not (ideal_csv.parent / "metadata.json").exists():
+            print(f"ERROR: metadata.json missing for {ideal_csv.name}, skipping scoring")
+            continue
+        if not (pert_csv.parent / "metadata.json").exists():
+            print(f"ERROR: metadata.json missing for {pert_csv.name}, skipping scoring")
+            continue
 
         # Score ideal
         try:
