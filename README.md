@@ -2,8 +2,7 @@
 
 This repository hosts the official evaluation system for the **Graph Topology Ablation (GTA) challenge**. Participants submit predictions for ideal and perturbed graph topologies. All submissions are encrypted, automatically evaluated, and ranked on a public leaderboard.
 
-📊 **Live leaderboard**: [Open leaderboard]((https://idrees11.github.io/GTA-Graph-Topology-Ablation-/))
-
+📊 **Live leaderboard**: [Open leaderboard](https://idrees11.github.io/GTA-Graph-Topology-Ablation-/)
 ---
 
 ## 🎯 Objective
