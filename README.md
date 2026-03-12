@@ -126,15 +126,19 @@ Generates predictions for both ideal and perturbed test graphs.
 
 Saves submission files in the required format.
 ```
-
+---------------------
 To run the baseline:
-
-bash
+---------------------
+```
 cd starter_code
-python baseline.py
+starter_code/python baseline.py
+```
+
 This will create ideal_submission.csv and perturbed_submission.csv in the submissions/ folder (which is git‑ignored).
 
+-------------------------
 📤 Submission Procedure
+-------------------------
 Submissions must be encrypted and placed inside a folder named after your team.
 
 Step 1: Prepare your submission files
