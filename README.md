@@ -102,9 +102,10 @@ A smaller gap indicates a more stable and reliable model.
 
 Only the **best perturbed score** per participant is kept in the leaderboard.
 
----
 
+-----------------------
 ## 🚀 Getting Started
+-----------------------
  
 ### Environment Setup
 
