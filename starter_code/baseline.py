@@ -40,14 +40,15 @@ test_df = pd.read_csv(os.path.join(DATA_DIR, "test.csv"))
 # Perturbation Function
 # ----------------------------
 
-def perturb_graph(data, noise_level=0.1):
-
+def perturb_graph(data, feature_shift=0.3, noise_std=0.05):
     data = data.clone()
-
     if data.x is not None:
-        noise = torch.randn_like(data.x) * noise_level
+        # Distribution shift
+        shift = torch.full_like(data.x, feature_shift)
+        data.x = data.x + shift
+        # Gaussian noise
+        noise = torch.randn_like(data.x) * noise_std
         data.x = data.x + noise
-
     return data
 
 # ----------------------------
