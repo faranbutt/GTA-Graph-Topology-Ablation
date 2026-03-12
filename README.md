@@ -139,18 +139,23 @@ This will create ideal_submission.csv and perturbed_submission.csv in the submis
 -------------------------
 📤 Submission Procedure
 -------------------------
+
 Submissions must be encrypted and placed inside a folder named after your team.
 
-Step 1: Prepare your submission files
+#Step 1: Prepare your submission files
+
 Your CSV files must have the following format (example for 38 test graphs):
 
-csv
+```
 graph_index,label
 160,1
 62,0
 48,0
 173,1
-...
+.....
+.....
+
+```
 ideal_submission.csv – predictions on clean test graphs.
 
 perturbed_submission.csv – predictions on perturbed test graphs.
